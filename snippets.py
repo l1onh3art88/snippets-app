@@ -8,7 +8,7 @@ logging.debug("Connecting to PostgreSQL")
 connection = psycopg2.connect(database="snippets")
 logging.debug("Database connection established.")
 
-def put(name, snippet):
+def put(name, snippet, hidden):
     """   
     Store a snippet with an associated name.
 
@@ -16,11 +16,11 @@ def put(name, snippet):
     """
     
     cursor = connection.cursor()
-    command = "insert into snippets values (%s, %s)"
+    command = "insert into snippets values (%s, %s); update snippets set hidden = True where keyword = (%s)"
     try:
-        command = "insert into snippets values (%s, %s)"
+        
         with connection, connection.cursor() as cursor:
-            cursor.execute(command, (name, snippet))
+            cursor.execute(command, (name, snippet, name))
     except psycopg2.IntegrityError as e:
         connection.rollback()
         command = "update snippets set message=%s where keyword=%s"
@@ -53,7 +53,7 @@ def catalog():
     """
     
     cursor = connection.cursor()
-    command = "select keyword from snippets order by keyword"
+    command = "select keyword from snippets where not hidden order by keyword"
     with connection, connection.cursor() as cursor:
         cursor.execute(command)
         catalog = cursor.fetchall()
@@ -66,9 +66,9 @@ def search(string):
     """
     
     cursor = connection.cursor()
-    command ="select keyword, message from snippets where message like \'%" + string + "%\'"
+    command ="select keyword, message from snippets where message like \'%" + string + "%\' AND not hidden"
     with connection, connection.cursor() as cursor:
-        cursor.execute(command)
+        cursor.execute(command,)
         results = cursor.fetchall()
     logging.debug("Found all snippets that contain your string")
     return results
@@ -84,7 +84,10 @@ def main():
     put_parser = subparsers.add_parser("put", help="Store a snippet")
     put_parser.add_argument("name", help="Name of the snippet")
     put_parser.add_argument("snippet", help="Snippet text")
+    put_parser.add_argument("--hidden", help = "Hides snippet", action="store_true")
     
+    
+
     # Subparser for the put command
     logging.debug("Constructing get subparser")
     get_parser = subparsers.add_parser("get", help="Retrieve a snippet")
@@ -101,6 +104,8 @@ def main():
     
 
     arguments = parser.parse_args()
+    
+    
     # Convert parsed arguments from Namespace to dictionary
     arguments = vars(arguments)
     command = arguments.pop("command")
